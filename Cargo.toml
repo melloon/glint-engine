@@ -1,0 +1,17 @@
+[package]
+name = "glint"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+gilrs = "0.11.2"
+macroquad = { version = "0.4.16", features = ["audio"] }
+
+# The renderer is tight per-pixel loops, which unoptimized builds run many
+# times slower. Optimize `cargo run` builds too; debug info, overflow checks
+# and fast rebuilds of our own code are kept.
+[profile.dev]
+opt-level = 2
+
+[profile.dev.package."*"]
+opt-level = 3
