@@ -117,6 +117,112 @@ pub fn render(notes: &[Note]) -> Vec<i16> {
     samples
 }
 
+/// The pitch of a named note in Hz: a letter, an optional `#` (sharp) or `b`
+/// (flat), and an octave number. "A4" is 440 Hz and "C4" is middle C.
+///
+/// Each step up the 12-note scale multiplies the pitch by the same amount,
+/// and 12 steps (an octave) double it.
+pub fn pitch(name: &str) -> Option<f32> {
+    let mut chars = name.chars();
+    // How many steps above C the letter is.
+    let mut steps: i32 = match chars.next()? {
+        'C' => 0,
+        'D' => 2,
+        'E' => 4,
+        'F' => 5,
+        'G' => 7,
+        'A' => 9,
+        'B' => 11,
+        _ => return None,
+    };
+    let mut rest = chars.as_str();
+    if let Some(after) = rest.strip_prefix('#') {
+        steps += 1;
+        rest = after;
+    } else if let Some(after) = rest.strip_prefix('b') {
+        steps -= 1;
+        rest = after;
+    }
+    let octave: i32 = rest.parse().ok()?;
+    // Count steps from A4, which is 9 steps above C4.
+    let from_a4 = (octave - 4) * 12 + steps - 9;
+    Some(440.0 * 2f32.powf(from_a4 as f32 / 12.0))
+}
+
+/// How many ticks at the start of a sequenced note are played at full
+/// volume before it settles, and how long the silence at its end is. The
+/// accent and the gap are what make two notes in a row sound like two notes.
+const ATTACK_TICKS: u32 = 3;
+const GAP_TICKS: u32 = 1;
+
+/// Turn a line of written music into notes for one voice.
+///
+/// The line is a row of steps, each `step_ticks` long, separated by spaces:
+///
+/// - a note name such as `C5` or `F#3` starts a note
+/// - `.` holds whatever came before for one more step
+/// - `-` starts a silence
+/// - `|` is ignored, so it can mark the bars
+///
+/// So `"C5 . E5 G5 | - . C6 ."` is a long C, two short notes, a two-step
+/// silence and a long high C. Music programs of the era laid tunes out in
+/// the same way, one row per step.
+///
+/// Panics on anything else, like `Tile::from_art`: a typo in the music
+/// should stop the program at startup, not play a wrong note.
+pub fn sequence(wave: Wave, volume: u8, step_ticks: u32, score: &str) -> Vec<Note> {
+    // First pass: work out each note or silence and how many steps it lasts.
+    let mut events: Vec<(Option<f32>, u32)> = Vec::new();
+    for token in score.split_whitespace() {
+        match token {
+            "|" => {}
+            "." => match events.last_mut() {
+                Some(event) => event.1 += 1,
+                None => events.push((None, 1)),
+            },
+            "-" => events.push((None, 1)),
+            name => {
+                let hz = pitch(name).unwrap_or_else(|| panic!("unknown note {name:?}"));
+                events.push((Some(hz), 1));
+            }
+        }
+    }
+
+    // Second pass: shape each one. A note is an accent, a slightly quieter
+    // held part, and a short gap.
+    let mut notes = Vec::new();
+    for (hz, steps) in events {
+        let ticks = steps * step_ticks;
+        let Some(hz) = hz else {
+            notes.push(Note::rest(ticks));
+            continue;
+        };
+        let gap = if ticks > GAP_TICKS { GAP_TICKS } else { 0 };
+        let attack = ATTACK_TICKS.min(ticks - gap);
+        let held = ticks - gap - attack;
+        notes.push(Note::tone(wave, hz, attack, volume));
+        if held > 0 {
+            notes.push(Note::tone(wave, hz, held, (volume * 2 / 3).max(1)));
+        }
+        if gap > 0 {
+            notes.push(Note::rest(gap));
+        }
+    }
+    notes
+}
+
+/// Add several voices together into one stream, the way the chip's tone
+/// generators all fed one output. The result is as long as the longest voice.
+pub fn mix(voices: &[Vec<i16>]) -> Vec<i16> {
+    let length = voices.iter().map(Vec::len).max().unwrap_or(0);
+    (0..length)
+        .map(|i| {
+            let sum: i32 = voices.iter().map(|voice| voice.get(i).copied().unwrap_or(0) as i32).sum();
+            sum.clamp(i16::MIN as i32, i16::MAX as i32) as i16
+        })
+        .collect()
+}
+
 /// Wrap samples in a WAV file header (mono, 16-bit), so they can be handed
 /// to anything that plays ordinary sound files.
 pub fn wav_bytes(samples: &[i16]) -> Vec<u8> {
@@ -219,6 +325,59 @@ mod tests {
         runs.sort();
         runs.dedup();
         assert!(runs.len() > 5, "only {} distinct run lengths", runs.len());
+    }
+
+    fn total_ticks(notes: &[Note]) -> u32 {
+        notes.iter().map(|note| note.ticks).sum()
+    }
+
+    #[test]
+    fn note_names_give_standard_pitches() {
+        assert_eq!(pitch("A4"), Some(440.0));
+        assert!((pitch("C4").unwrap() - 261.63).abs() < 0.01); // middle C
+        assert!((pitch("A5").unwrap() - 880.0).abs() < 0.01); // an octave doubles
+        assert_eq!(pitch("C#5"), pitch("Db5")); // two names for one note
+        assert_eq!(pitch("H4"), None);
+        assert_eq!(pitch("C"), None);
+    }
+
+    #[test]
+    fn sequence_reads_notes_holds_and_silences() {
+        let notes = sequence(Wave::Pulse(4), 9, 12, "A4 . C5 | - . A5 .");
+        assert_eq!(total_ticks(&notes), 7 * 12); // seven steps; the bar line is not one
+
+        let samples = render(&notes);
+        let step = 12 * SAMPLES_PER_TICK;
+        // Steps 0-1 are one held A4: about 440 cycles a second for 0.4 s,
+        // less the gap at the end.
+        let long_a = cycles(&samples[..2 * step]);
+        assert!((165..=172).contains(&long_a), "{long_a} cycles");
+        // Steps 3-4 are silent.
+        assert!(samples[3 * step..5 * step].iter().all(|&s| s == 0));
+        // The accent is louder than the held part.
+        assert_eq!(loudest(&samples[..SAMPLES_PER_TICK]), (AMPLITUDE * 9.0 / 15.0) as i16);
+        assert_eq!(loudest(&samples[step..step + SAMPLES_PER_TICK]), (AMPLITUDE * 6.0 / 15.0) as i16);
+    }
+
+    #[test]
+    fn repeated_notes_are_separated_by_a_gap() {
+        let samples = render(&sequence(Wave::Pulse(4), 9, 12, "A4 A4"));
+        let step = 12 * SAMPLES_PER_TICK;
+        assert!(samples[step - SAMPLES_PER_TICK..step].iter().all(|&s| s == 0));
+        assert!(samples[step] != 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown note")]
+    fn sequence_rejects_typos() {
+        sequence(Wave::Pulse(4), 9, 12, "A4 X9");
+    }
+
+    #[test]
+    fn mix_adds_voices_and_clips_instead_of_wrapping() {
+        assert_eq!(mix(&[vec![100, -200, 300], vec![1, 2]]), [101, -198, 300]);
+        assert_eq!(mix(&[vec![30_000, -30_000], vec![30_000, -30_000]]), [i16::MAX, i16::MIN]);
+        assert_eq!(mix(&[]), []);
     }
 
     #[test]

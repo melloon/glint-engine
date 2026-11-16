@@ -8,6 +8,7 @@ mod display;
 mod enemy;
 mod gamepad;
 mod input;
+mod music;
 mod physics;
 mod player;
 mod sfx;
@@ -47,6 +48,8 @@ async fn main() {
     let mut gamepads = Gamepads::new();
     // Every sound effect is synthesized once here, before the game starts.
     let mut speaker = Speaker::new(&Sfx::ALL.map(Sfx::notes)).await;
+    // So is the music: all four voices are mixed into one loop.
+    speaker.start_music(&music::theme()).await;
 
     // Debug aid: GLINT_SNAPSHOT=out.png saves the frame after 60 ticks and
     // exits. GLINT_SNAPSHOT_TICKS changes the tick count, and
@@ -79,6 +82,8 @@ async fn main() {
         if is_key_pressed(KeyCode::M) {
             speaker.toggle_mute();
         }
+        // The game says whether music should be heard; it falls silent on pause.
+        speaker.set_music_playing(demo.music_playing());
 
         // 2. Draw: the game paints palette indices into the framebuffer...
         demo.draw(&mut fb);

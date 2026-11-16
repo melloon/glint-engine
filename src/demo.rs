@@ -123,6 +123,12 @@ impl Demo {
         std::mem::take(&mut self.sounds)
     }
 
+    /// Should the background music be heard right now? Like the sound
+    /// effects, the game only states what it wants.
+    pub fn music_playing(&self) -> bool {
+        !self.paused
+    }
+
     /// One tick of actual gameplay.
     fn play(&mut self, pad: &Controller) {
         // Once the flag is reached the hero stops listening to the

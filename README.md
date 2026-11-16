@@ -26,13 +26,23 @@ It has been developed and tested on macOS only.
 | Start | Enter | Options | Pause |
 | Select | Right Shift or Tab | Create | Change the hero's colour |
 
-Press M to mute or unmute.
+Press M to mute or unmute the music and sound effects.
 
 ## The demo level
 
 ![The end of the level: brick steps over a pit, a tall wall, and the goal flag](docs/images/level-end.png)
 
 The level is three screens wide. Collect gems, stomp enemies by landing on them, jump the two pits, and reach the flag. Touching an enemy any other way, or falling into a pit, sends you back to the start. The wall before the flag is too tall to jump from the ground; the way over is from the top brick step.
+
+## Sound and music
+
+Nothing is recorded. Every sound is a list of notes that a small software sound chip turns into audio when the game starts. The music is written as text, one step per eighth note, where a name starts a note, `.` holds it and `-` is a silence:
+
+```text
+E5 G5 C6 .  G5 .  E5 .  |  D5 E5 G5 .  .  .  -  .  |
+```
+
+The level theme is 16 bars for four voices and loops. It falls silent while the game is paused.
 
 ## The console limits
 
@@ -48,8 +58,9 @@ The level is three screens wide. Collect gems, stomp enemies by landing on them,
 | Sprites per line | At most 8 on any horizontal line; extras are not drawn |
 | Movement | Whole numbers in 1/256ths of a pixel, no floating point |
 | Sound | Pulse, triangle and noise waves with 16 volume steps |
+| Music | Four voices: two pulse, one triangle, one noise |
 
-Where Glint knowingly differs from real hardware: the whole level is kept in memory rather than streamed in while scrolling, sounds can overlap freely, sprites can sit partly off the left edge, and sprites cannot be placed behind the background.
+Where Glint knowingly differs from real hardware: the whole level is kept in memory rather than streamed in while scrolling, sound effects play on top of the music rather than borrowing its voices, sprites can sit partly off the left edge, and sprites cannot be placed behind the background.
 
 ## How the code is organised
 
@@ -68,7 +79,7 @@ All the code is in `src`. The engine and the demo game are kept apart: the game 
 | `physics.rs` | Sub-pixel bodies and tile collision |
 | `camera.rs` | Scroll position that follows a target |
 | `animation.rs` | Frame animation |
-| `synth.rs`, `audio.rs` | The sound chip, and playing its output |
+| `synth.rs`, `audio.rs` | The sound chip (waves, note names, written music, mixing), and playing its output |
 
 | Demo game | What it does |
 |---|---|
@@ -77,6 +88,7 @@ All the code is in `src`. The engine and the demo game are kept apart: the game 
 | `enemy.rs` | The patrolling enemy |
 | `art.rs` | Tile drawings (as ASCII art) and palettes |
 | `sfx.rs` | Sound effects, written as notes |
+| `music.rs` | The level theme, written as four lines of music |
 
 ## Tests
 
@@ -84,7 +96,7 @@ All the code is in `src`. The engine and the demo game are kept apart: the game 
 cargo test
 ```
 
-There are 73 tests. Because the game logic never touches the window or speakers, the tests can drive the whole demo with a scripted controller.
+There are 80 tests. Because the game logic never touches the window or speakers, the tests can drive the whole demo with a scripted controller.
 
 For a quick visual check, `GLINT_SNAPSHOT=out.png cargo run` saves the window after 60 ticks and exits. `GLINT_SNAPSHOT_TICKS` changes the tick count, and `GLINT_SNAPSHOT_HOLD` holds a controller byte down throughout (128 is Right).
 
@@ -99,7 +111,7 @@ Glint was built one system at a time. These screenshots are from earlier steps.
 | ![The hero and a row of gems drawn as sprites](docs/images/step-3-sprites.png) | ![The view scrolled partway into the second screen](docs/images/step-7-scrolling.png) |
 | Step 3: sprites, with 8 of the 10 gems drawn on their line | Step 7: scrolling |
 
-The remaining steps added controller input, collision and physics, gamepad support, animation, the gem counter, enemies and sound.
+The remaining steps added controller input, collision and physics, gamepad support, animation, the gem counter, enemies, sound effects and music.
 
 ## Dependencies
 
