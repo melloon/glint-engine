@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "An 8-bit style platformer engine built to console limits, with a demo level"
 license = "MIT"
-repository = "https://github.com/melloon/glint"
+repository = "https://github.com/melloon/glint-engine"
 # This is a program to run, not a library for crates.io.
 publish = false
 
