@@ -117,3 +117,7 @@ The remaining steps added controller input, collision and physics, gamepad suppo
 
 - [macroquad](https://crates.io/crates/macroquad) for the window, drawing and audio output
 - [gilrs](https://crates.io/crates/gilrs) for gamepads
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
