@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/logo.svg" alt="Glint" width="360">
+</p>
+
 # Glint
 
 An 8-bit style platformer engine in Rust, built to the limits of the consoles it imitates, with a small demo game on top.

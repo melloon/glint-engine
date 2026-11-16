@@ -18,6 +18,7 @@ mod tiles;
 mod timing;
 mod video;
 
+use macroquad::miniquad::conf::Icon;
 use macroquad::prelude::*;
 
 use audio::Speaker;
@@ -29,11 +30,22 @@ use sfx::Sfx;
 use timing::FixedTimestep;
 use video::{Framebuffer, SCREEN_H, SCREEN_W};
 
+/// The window and dock icon: raw RGBA at the three sizes the window system
+/// asks for, made from the same pixel art as `docs/images/icon.svg`.
+fn window_icon() -> Icon {
+    Icon {
+        small: *include_bytes!("../assets/icon-16.rgba"),
+        medium: *include_bytes!("../assets/icon-32.rgba"),
+        big: *include_bytes!("../assets/icon-64.rgba"),
+    }
+}
+
 fn window_conf() -> Conf {
     Conf {
         window_title: "Glint".to_owned(),
         window_width: SCREEN_W as i32 * 3,
         window_height: SCREEN_H as i32 * 3,
+        icon: Some(window_icon()),
         ..Default::default()
     }
 }
