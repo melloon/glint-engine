@@ -18,7 +18,21 @@ You need Rust 1.85 or newer.
 cargo run
 ```
 
-It has been developed and tested on macOS only.
+It runs on macOS and Linux.
+
+### Linux
+
+Building needs the ALSA and libudev development files (for sound and gamepads) and `pkg-config`:
+
+| Distribution | Install |
+|---|---|
+| Fedora | `sudo dnf install gcc pkgconf-pkg-config alsa-lib-devel systemd-devel` |
+| Debian, Ubuntu | `sudo apt install build-essential pkg-config libasound2-dev libudev-dev` |
+| Arch | `sudo pacman -S base-devel alsa-lib systemd-libs` |
+
+On an immutable Fedora such as Silverblue or Bazzite, build inside a toolbox or distrobox with the Fedora packages above. To `cargo run` from inside the container as well, it also needs the window, graphics and sound libraries: `sudo dnf install libX11 libXi libglvnd-glx libglvnd-egl mesa-dri-drivers pipewire-alsa`. The binary it builds, `target/debug/glint`, also runs directly on the host.
+
+The window uses X11, so on a Wayland desktop it runs through XWayland. Gamepads are read from `/dev/input`, which needs the usual desktop permissions.
 
 ## Controls
 
